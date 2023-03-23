@@ -1,0 +1,1 @@
+from player import characters, model, player

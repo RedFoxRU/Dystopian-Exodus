@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "dystopian-exodus"
+version = "0.1.0"
+description = ""
+authors = ["RDFRU <mg814201@gmail.com>"]
+readme = "README.md"
+packages = [{include = "dystopian_exodus"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+aiogram = "^2.25.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
