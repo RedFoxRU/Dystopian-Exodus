@@ -40,10 +40,10 @@ class Player():
         self.selected_to_open = None
         self.opened = {'sex':False, 'age': False, 'body': False,
                        'heal':False, 'phobia': False, 'hobby':False,
-                       "utils": False, 'work': False
+                       "utils": False, 'work': True
                        }
         self.voted = 0
-        self.votedIn:Player = None
+        self.votedIn = 0
 
     async def send_message(self, text: Text,
                             parse_mode: typing.Optional[Text] = None,
@@ -68,8 +68,8 @@ class Player():
                                             reply_markup=reply_markup)
 
     def voteIn(self, voteIn: Player):
-        if voteIn != self.voteIn:
-            self.votedIn = voteIn
+        if voteIn.id != self.votedIn:
+            self.votedIn = voteIn.id
             voteIn.voted += 1
     
     def getVoted(self):
@@ -77,6 +77,10 @@ class Player():
         if self.voted > 0:
             voted += str(self.voted)
         return voted
+    
+    def clearVote(self):
+        self.voted = 0
+        self.votedIn = 0
 
     def set_job(self, jobs: list) -> Text:
         self.job = random.randint(0, len(jobs)-1)
@@ -116,8 +120,13 @@ class Player():
                                                         phobia=self.getPhobiaText(), heal=self.getHealText(),
                                                         hobbys=self.getHobbysText(), work=self.getWorkText(), 
                                                         utils=self.getUtilsText(), body=self.getBodyText(),opened=''),
-                                                        reply_markup=keyboards.client.getInkbOpenStats(self.game))
-    
+                                                        reply_markup=keyboards.client.getInkbOpenStats(self.game, self.opened, self.selected_to_open))
+
+    async def edit_opened_stats(self):
+        await self.bot.edit_message_reply_markup(chat_id=self.openMessage.chat.id,
+                                                message_id=self.openMessage.message_id,
+                                                reply_markup=keyboards.client.getInkbOpenStats(self.game, self.opened, self.selected_to_open))
+
     def take_damage(self, damage: int):
         self.heal -= damage
         if self.heal <= 0:
@@ -152,11 +161,11 @@ class Player():
         else:
             age = "###"
         if self.opened['body']:
-            body = self.body
+            body = self.getBodyText()
         else:
             body = "###"
         if self.opened['hobby']:
-            hobby = characters.hobbys[self.hobbys]
+            hobby = self.getHobbysText()
         else: 
             hobby = "###"
         if self.opened['heal']:
@@ -176,13 +185,13 @@ class Player():
         else:
             work = "###"
         return f"""Характеристики: {username}
-Возраст: {age}
 Пол: {sex}
+Возраст: {age}
 Телосложение: {body}
-Фобия: {phobia}
-Здоровье: {heal}
-Хобби: {hobby}
 Работа: {work}
+Здоровье: {heal}
+Фобия: {phobia}
+Хобби: {hobby}
 Факт: {utils}
 """
 
@@ -190,6 +199,8 @@ class Player():
         await self.bot.send_message(chat_id=id, text=self.getOpenedText())
 
     async def open(self):
+        if not self.live:
+            return ''
         selected_to_open = ''
         if not self.selected_to_open:
             self.randomSelect()

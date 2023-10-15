@@ -1,6 +1,6 @@
 import asyncio
 import aiogram
-from service import gameCodes
+from service.gameCodes import Codes
 from service.player import Player
 from service.game import Game
 from aiogram import types, filters
@@ -23,16 +23,19 @@ async def startCommand(message: types.Message, state: FSMContext):
         game = stack.getGame(index)
         if game.findPlayer(message.from_user.id):
                 await message.answer(texts.client.U_IN_GAME)
-                # return None
+                return None
         player = Player(message.from_user.id, bot, index, message.from_user.full_name, username=message.from_user.username)
         game.addPlayer(player)
         inkb = InlineKeyboardBuilder()
         inkb.row(types.InlineKeyboardButton(text=texts.client.CONNECT_TO_GAME, url=f't.me/{ME}?start=connect_{str(index)}'))
         await game.messages['createMessage'].edit_text(texts.client.CONNECTED_MANS.format(countMans=len(game.players),players=game.getLinksPlayers()), parse_mode='markdown')
-        # await asyncio.sleep(0.3)
         message.edit_reply_markup()
         await bot.edit_message_reply_markup(chat_id=index,message_id=game.messages['createMessage'].message_id,reply_markup=inkb.as_markup())
         await message.answer('Ты успешно присоединился к игре #{0}'.format(str(index).replace('-','')))
+
+@router.message(F.chat.type.in_({"group", "supergroup"}), filters.Command('start'))
+async def connect_handler(message: types.Message, state: FSMContext):
+    stack.getGame(message.chat.id).start()
 
 @router.message(F.chat.type.in_({"group", "supergroup"}), filters.Command('extend'))
 async def connect_handler(message: types.Message, state: FSMContext):
@@ -59,7 +62,12 @@ async def createCommand(message: types.Message, state: FSMContext):
         await message.reply("У меня нет прав, чтобы закрепить сообщение.")
     game.messages['createMessage'] = message
     response = await game.connectWaiter()
-    if response == gameCodes.Codes.NOT_HAVE_PLAYERS:
-        stack.removeGame(index)
-        return await game.send_message(texts.client.NOT_HAVE_MORE_PLAYERS)
+    match response:
+        case Codes.NOT_HAVE_PLAYERS:
+            stack.removeGame(index)
+            return await game.send_message(texts.client.NOT_HAVE_MORE_PLAYERS)
+        case Codes.GAME_OVER:
+            stack.removeGame(index)
+            return await game.send_message(texts.client.GAME_OVER)
+
 

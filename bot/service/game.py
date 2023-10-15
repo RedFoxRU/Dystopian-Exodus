@@ -57,7 +57,7 @@ class Game():
 
     def checkPlayer(self, id):
         player: Player = self.getPlayer(id)
-        if not player:
+        if not player or player.live:
             return False
         return True
 
@@ -75,24 +75,32 @@ class Game():
         if self.getAlivePlayersCount() == self.sleepCount:
             return Codes.GAME_OVER
         else:
-            return
+            return None
 
     async def updateVoteReply(self):
         message: types.Message = self.messages['voteMessage']
-        await self.bot.edit_message_reply_markup(chat_id=self.id, message_id=message.message_id,reply_markup=getInkOfVote(game=self.id, players=self.players))
+        try:
+            await self.bot.edit_message_reply_markup(chat_id=self.id, message_id=message.message_id,reply_markup=getInkOfVote(game=self.id, players=self.players))
+        except:
+            pass
         
         
     async def startVote(self):
         self.messages['voteMessage'] = await self.send_message(text=texts.client.START_VOTE, reply_markup=getInkOfVote(game=self.id, players=self.players))
-        for i in range(0, self.voteTime):
+        i = 0
+        while i<30:
             voted_count = 0
             player: Player
             for player in self.players:
-                if player.votedIn !=  None:
+                if player.votedIn !=  0:
                     voted_count += 1
             if voted_count == self.getAlivePlayersCount():
+                await self.messages['voteMessage'].delete()
                 return
             await sleep(1)
+            i+=1
+
+        await self.messages['voteMessage'].delete()
         return
     
     def getMaxVoted(self):
@@ -149,9 +157,11 @@ class Game():
         links1 = ''
         links2 = ''
         for link in players_links1:
-            links1 += link[1]+'\n'+'\n'
+            if link[0].live:
+                links1 += link[1]+'\n'+'\n'
         for link in players_links2:
-            links2 += link[1]+'\n'+'\n'
+            if link[0].live:
+                links2 += link[1]+'\n'+'\n'
         await self.send_message(links1, reply_markup=getInkbOpenedStats(game=self.id, players_list=players_links1))
         try:
             await self.send_message(links2, reply_markup=getInkbOpenedStats(game=self.id, players_list=players_links2))
@@ -172,10 +182,13 @@ class Game():
         for player in self.players:
             if self._round == 1:
                 await self.bot.edit_message_reply_markup(chat_id=player.openMessage.chat.id,
-                                                         message_id=player.openMessage.message_id,
-                                                         reply_markup=None)
+                                                        message_id=player.openMessage.message_id,
+                                                        reply_markup=None)
             else:
-                await player.openMessage.delete()
+                try:
+                    await player.openMessage.delete()
+                except:
+                    pass
     
     async def mainloop(self):
         self.set_players_job()
@@ -197,19 +210,22 @@ class Game():
                 opened = await player.open()
                 players_links.append([player, f"{player.link} открыл {opened}"])
             await self.sendOpen(players_links)
-            await self.send_message("Даю вам 2 минуты все обсудить")
-            await sleep(120)
+            await self.send_message("Даю вам полторы минуты все обсудить")
+            await sleep(90)
             
             if self._round > 1:
                 await self.startVote()
-                await self.messages['voteMessage'].delete()
                 mvoted = self.getMaxVoted()
                 if mvoted.voted != 0:
                     mvoted.live = False
                     await self.send_message(texts.client.KICK_FROM_TEMP_CAMP.format(user=mvoted.link))
+                    if self.gameOverCheck() == Codes.GAME_OVER:
+                        return Codes.GAME_OVER
+                else:
+                    await self.send_message("Разошлись во мнении")
+                for player in self.players:
+                    player.clearVote()
             self._round += 1
-            if self.gameOverCheck() == Codes.GAME_OVER:
-                return Codes.GAME_OVER
 
     async def start(self):
         self.connectTime = 1
